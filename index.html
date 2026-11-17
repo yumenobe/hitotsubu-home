@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<link rel="icon" href="data:," />
+<title>ひとつぶタスク localStorage版</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  /* ===== Theme ===== */
+  body[data-mode="night"]{
+    --base:#F2EEE5; --main:#6B8F83; --sub:#54758A; --ink:#2E3D38; --ink-soft:#5A6B66;
+    --card:#6B8F83; --tab-active:#54758A; --dot:#CFC8B8; --dot-active:#54758A;
+    --line:rgba(46,61,56,.16); --pill-bg:#FFFFFF;
+    background:var(--base); color:var(--ink);
+  }
+  body[data-mode="morning"]{
+    --base:#F3E6D8; --main:#E6A17D; --sub:#C97F56; --ink:#66564C; --ink-soft:#8A7668;
+    --card:#E6A17D; --tab-active:#66564C; --dot:#DCC3A8; --dot-active:#66564C;
+    --line:rgba(102,86,76,.18); --pill-bg:#FFF9F1;
+    background:var(--base); color:var(--ink);
+  }
+  html{background:#F2EEE5}
+  body{transition:background .25s ease}
+  button{font:inherit;cursor:pointer}
+  button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:3px solid var(--sub);outline-offset:2px}
+
+  /* ===== Deck (no scroll) ===== */
+  .deck{
+    height:100dvh; max-height:100dvh; overflow:hidden;
+    display:flex; flex-direction:column;
+    padding:8px 20px calc(10px + env(safe-area-inset-bottom));
+    max-width:560px; margin:0 auto; width:100%;
+  }
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex:0 0 auto}
+  .count{font-size:20px; font-weight:700; letter-spacing:.02em; min-width:64px}
+  .top-actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+  .ghost-btn{
+    min-height:44px; padding:9px 16px; border-radius:999px;
+    border:1.5px solid var(--ink-soft); background:transparent; color:var(--ink);
+    font-size:15px; font-weight:700; display:inline-flex; align-items:center; gap:6px;
+  }
+  .ghost-btn:active{transform:scale(.98)}
+  /* tabs pushed down: 24px gap from the top row */
+  .tabs-wrap{display:flex; justify-content:center; margin-top:24px; flex:0 0 auto}
+  .tabs{
+    display:inline-flex; background:var(--pill-bg); border:1.5px solid var(--line);
+    border-radius:999px; padding:4px; gap:4px; box-shadow:0 2px 10px rgba(0,0,0,.05);
+  }
+  .tab{
+    min-width:104px; min-height:48px; border:0; border-radius:999px; background:transparent;
+    font-size:18px; font-weight:800; color:var(--ink-soft); padding:10px 22px;
+  }
+  .tab[aria-selected="true"]{background:var(--tab-active); color:#fff}
+  .card-zone{flex:1 1 auto; display:flex; align-items:center; justify-content:center; min-height:0; padding:10px 0 4px}
+  .card{
+    width:100%; height:40dvh; min-height:250px; max-height:460px;
+    border:0; border-radius:34px; background:var(--card); color:#fff;
+    display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+    padding:26px 22px 24px; text-align:center; position:relative;
+    box-shadow:0 14px 28px rgba(60,45,30,.14), 0 6px 0 rgba(0,0,0,.05);
+  }
+  .card:active{transform:scale(.995)}
+  .card-label{font-size:15px; font-weight:700; letter-spacing:.14em; opacity:.92}
+  .card-task{font-size:clamp(36px,9.5vw,54px); font-weight:800; line-height:1.3; word-break:break-word; padding:0 4px}
+  .card-hint{font-size:17px; font-weight:700; opacity:.95; display:flex; align-items:center; gap:4px}
+  .card-done{background:var(--tab-active)}
+  .dots{display:flex; justify-content:center; gap:10px; margin-top:8px; flex:0 0 auto; flex-wrap:wrap; padding:0 8px}
+  .dot{width:11px; height:11px; border-radius:999px; background:var(--dot); transition:all .2s}
+  .dot.done{background:var(--dot-active); opacity:.55}
+  .dot.now{width:30px; background:var(--dot-active); opacity:1}
+  /* back button pushed down: 20px gap from dots */
+  .back-row{margin-top:20px; flex:0 0 auto}
+  .back-btn{
+    min-height:48px; border:0; background:transparent; color:var(--ink);
+    font-size:18px; font-weight:700; display:inline-flex; align-items:center; gap:8px; padding:10px 12px 10px 2px;
+  }
+  .back-btn:disabled{opacity:.35}
+  .saved-note{text-align:center; font-size:12px; color:var(--ink-soft); margin-top:2px; flex:0 0 auto}
+
+  /* ===== Sub views (scrollable) ===== */
+  .view{min-height:100dvh; max-width:560px; margin:0 auto; padding:14px 20px calc(28px + env(safe-area-inset-bottom))}
+  .view-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
+  .view-title{font-size:21px; font-weight:800; margin:0}
+  .view-sub{font-size:13.5px; color:var(--ink-soft); margin:2px 0 14px; line-height:1.6}
+  .list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px}
+  .list-item{
+    width:100%; text-align:left; border:1.5px solid var(--line); background:var(--pill-bg);
+    border-radius:16px; padding:14px 16px; min-height:56px;
+    display:flex; align-items:center; gap:12px; font-size:17px; font-weight:700; color:var(--ink);
+  }
+  .list-item .num{font-size:13px; color:var(--ink-soft); min-width:22px}
+  .list-item .name{flex:1}
+  .badge{font-size:12px; font-weight:800; background:var(--tab-active); color:#fff; border-radius:999px; padding:4px 10px; white-space:nowrap}
+  .check{width:26px; height:26px; border-radius:50%; background:var(--main); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:15px; flex:0 0 auto}
+  body[data-mode="morning"] .check{background:#B98A68}
+  .list-item.is-now{border-color:var(--tab-active); box-shadow:0 0 0 1.5px var(--tab-active) inset}
+  .list-item.is-done{opacity:.72}
+  .primary-btn{
+    min-height:50px; border:0; border-radius:999px; background:var(--tab-active); color:#fff;
+    font-size:16px; font-weight:800; padding:12px 22px; width:100%;
+  }
+  .sticky-bottom{position:sticky; bottom:10px; margin-top:18px}
+  /* edit */
+  .edit-row{display:flex; gap:8px; align-items:stretch}
+  .edit-row input{
+    flex:1; min-height:50px; border:1.5px solid var(--line); border-radius:14px;
+    padding:10px 14px; font-size:17px; font-family:inherit; background:#fff; color:#2b2b2b; min-width:0;
+  }
+  .mini-btn{
+    min-width:44px; min-height:50px; border:1.5px solid var(--line); background:var(--pill-bg);
+    border-radius:14px; font-size:16px; color:var(--ink); padding:6px 10px; font-weight:700;
+  }
+  .add-row{display:flex; gap:8px; margin-top:16px}
+  .add-row input{flex:1; min-height:50px; border:1.5px dashed var(--ink-soft); border-radius:14px; padding:10px 14px; font-size:16px; font-family:inherit; background:transparent; color:var(--ink); min-width:0}
+  .add-btn{min-height:50px; border:0; border-radius:14px; background:var(--tab-active); color:#fff; font-weight:800; padding:10px 18px; font-size:16px}
+  .tool-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:22px}
+  .tool-btn{min-height:46px; border:1.5px solid var(--line); background:var(--pill-bg); color:var(--ink); border-radius:999px; padding:9px 16px; font-size:14px; font-weight:700}
+  .danger{color:#B3261E}
+  .hidden{display:none !important}
+  @media (max-height:640px){ .card{height:auto; flex:1 1 auto; max-height:none} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
+</style>
+</head>
+<body data-mode="night">
+
+  <!-- ===== 紙芝居 ===== -->
+  <main class="deck" id="deckView" aria-label="紙芝居">
+    <div class="topbar">
+      <div class="count" id="countLabel">1 / 7</div>
+      <div class="top-actions">
+        <button class="ghost-btn" id="openListBtn" type="button">☰ 一覧で確認</button>
+        <button class="ghost-btn" id="openEditBtn" type="button">✎ タスクを編集</button>
+      </div>
+    </div>
+
+    <div class="tabs-wrap">
+      <div class="tabs" role="tablist" aria-label="よる あさ 切り替え">
+        <button class="tab" id="tabNight" role="tab" type="button">よる</button>
+        <button class="tab" id="tabMorning" role="tab" type="button">あさ</button>
+      </div>
+    </div>
+
+    <div class="card-zone">
+      <button class="card" id="cardBtn" type="button" aria-live="polite">
+        <span class="card-label" id="cardLabel">いまのタスク</span>
+        <span class="card-task" id="cardTask">手を洗う</span>
+        <span class="card-hint" id="cardHint">できたらタップ <span aria-hidden="true">›</span></span>
+      </button>
+    </div>
+
+    <div class="dots" id="dots" aria-hidden="true"></div>
+
+    <div class="back-row">
+      <button class="back-btn" id="backBtn" type="button">← もどる</button>
+    </div>
+    <div class="saved-note">この端末に自動保存中 ・ 日付が変わると進捗はリセットされます</div>
+  </main>
+
+  <!-- ===== 一覧 ===== -->
+  <section class="view hidden" id="listView" aria-label="一覧で確認">
+    <div class="view-head">
+      <h2 class="view-title" id="listTitle">一覧で確認</h2>
+      <button class="ghost-btn" id="listCloseBtn" type="button">✕ 閉じる</button>
+    </div>
+    <p class="view-sub">タスクをタップすると、そのタスクから紙芝居を再開できます。</p>
+    <div class="tabs-wrap" style="margin:0 0 16px; justify-content:flex-start">
+      <div class="tabs">
+        <button class="tab" id="listTabNight" type="button">よる</button>
+        <button class="tab" id="listTabMorning" type="button">あさ</button>
+      </div>
+    </div>
+    <ul class="list" id="overviewList"></ul>
+    <div class="sticky-bottom"><button class="primary-btn" id="backToDeckBtn" type="button">紙芝居にもどる</button></div>
+  </section>
+
+  <!-- ===== 編集 ===== -->
+  <section class="view hidden" id="editView" aria-label="タスクを編集">
+    <div class="view-head">
+      <h2 class="view-title" id="editTitle">タスクを編集</h2>
+      <button class="ghost-btn" id="editCloseBtn" type="button">✕ 閉じる</button>
+    </div>
+    <p class="view-sub">文字を直すとその場で保存されます。↑↓で順番替え、×で削除できます。編集したタスクはこの端末に残ります。</p>
+    <div class="tabs-wrap" style="margin:0 0 16px; justify-content:flex-start">
+      <div class="tabs">
+        <button class="tab" id="editTabNight" type="button">よる</button>
+        <button class="tab" id="editTabMorning" type="button">あさ</button>
+      </div>
+    </div>
+    <div class="list" id="editList"></div>
+    <div class="add-row">
+      <input id="newTaskInput" type="text" placeholder="新しいタスクを入力" maxlength="40" />
+      <button class="add-btn" id="addTaskBtn" type="button">追加</button>
+    </div>
+    <div class="tool-row">
+      <button class="tool-btn" id="exportBtn" type="button">⬇ ファイルに書き出し</button>
+      <label class="tool-btn" for="importFile" style="display:inline-flex;align-items:center;min-height:46px;cursor:pointer">⬆ ファイルから読み込み</label>
+      <input id="importFile" type="file" accept=".json,application/json" class="hidden" />
+      <button class="tool-btn danger" id="resetBtn" type="button">最初のタスクに戻す</button>
+    </div>
+    <div class="sticky-bottom"><button class="primary-btn" id="editDoneBtn" type="button">紙芝居にもどる</button></div>
+  </section>
+
+<script>
+(function(){
+  "use strict";
+  var KEY = "hitotsubu-localstorage-v1";
+  var DEFAULTS = {
+    night: ["手を洗う","荷物を整理する","着替えを用意する","シャワーを浴びる","化粧水","ドライヤー","歯磨き"],
+    morning: ["水を飲む","顔を洗う","朝ごはんを食べる","歯磨きする","着替える","メイク","ヘアセット","荷物を準備する"]
+  };
+  function todayStr(){
+    var d = new Date();
+    var m = String(d.getMonth()+1).padStart(2,"0");
+    var day = String(d.getDate()).padStart(2,"0");
+    return d.getFullYear()+"-"+m+"-"+day;
+  }
+  function initialMode(){
+    var d = new Date(); var mins = d.getHours()*60 + d.getMinutes();
+    // 5:30(330) 〜 15:59(959) は あさ、それ以外は よる
+    return (mins >= 330 && mins <= 959) ? "morning" : "night";
+  }
+  function freshProgress(){ return { date: todayStr(), index: 0 }; }
+  function defaultState(){
+    return {
+      tasks: { night: DEFAULTS.night.slice(), morning: DEFAULTS.morning.slice() },
+      progress: { night: freshProgress(), morning: freshProgress() }
+    };
+  }
+  function load(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(!raw) return defaultState();
+      var s = JSON.parse(raw);
+      if(!s || !s.tasks || !Array.isArray(s.tasks.night) || !Array.isArray(s.tasks.morning)) return defaultState();
+      if(!s.progress) s.progress = { night: freshProgress(), morning: freshProgress() };
+      ["night","morning"].forEach(function(k){
+        if(!s.progress[k] || typeof s.progress[k].index !== "number") s.progress[k] = freshProgress();
+      });
+      return s;
+    }catch(e){ return defaultState(); }
+  }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+  function applyDailyReset(){
+    var t = todayStr(); var changed = false;
+    ["night","morning"].forEach(function(k){
+      if(state.progress[k].date !== t){ state.progress[k] = { date: t, index: 0 }; changed = true; }
+    });
+    if(changed) save();
+  }
+
+  var state = load();
+  applyDailyReset();
+  var mode = initialMode();
+  var view = "deck"; // deck | list | edit
+
+  var $ = function(id){ return document.getElementById(id); };
+  var deckView=$("deckView"), listView=$("listView"), editView=$("editView");
+  var countLabel=$("countLabel"), cardBtn=$("cardBtn"), cardLabel=$("cardLabel"),
+      cardTask=$("cardTask"), cardHint=$("cardHint"), dotsEl=$("dots"), backBtn=$("backBtn");
+
+  function tasks(){ return state.tasks[mode]; }
+  function prog(){ return state.progress[mode]; }
+  function clampProgress(){
+    var p = prog(); var len = tasks().length;
+    if(p.index < 0) p.index = 0;
+    if(p.index > len) p.index = len;
+  }
+  function syncTheme(){
+    document.body.setAttribute("data-mode", mode);
+    document.documentElement.style.background = (mode==="morning") ? "#F3E6D8" : "#F2EEE5";
+    [["tabNight","night"],["tabMorning","morning"],["listTabNight","night"],["listTabMorning","morning"],["editTabNight","night"],["editTabMorning","morning"]].forEach(function(pair){
+      var el = $(pair[0]); if(el) el.setAttribute("aria-selected", pair[1]===mode ? "true" : "false");
+    });
+  }
+  function showView(v){
+    view = v;
+    deckView.classList.toggle("hidden", v!=="deck");
+    listView.classList.toggle("hidden", v!=="list");
+    editView.classList.toggle("hidden", v!=="edit");
+    if(v==="list") renderList();
+    if(v==="edit") renderEdit();
+    window.scrollTo(0,0);
+  }
+  function renderDeck(){
+    clampProgress(); syncTheme();
+    var list = tasks(); var p = prog(); var total = list.length;
+    if(total===0){
+      countLabel.textContent = "0 / 0";
+      cardLabel.textContent = "タスクがありません";
+      cardTask.textContent = "編集から追加してね";
+      cardHint.textContent = "タスクを編集へ ›";
+      cardBtn.classList.remove("card-done");
+      dotsEl.innerHTML = ""; backBtn.disabled = true; return;
+    }
+    var done = p.index >= total;
+    countLabel.textContent = Math.min(p.index+1, total) + " / " + total;
+    if(done){
+      cardLabel.textContent = "おつかれさま";
+      cardTask.textContent = "全部できた！";
+      cardHint.textContent = "タップでもう一度はじめから";
+      cardBtn.classList.add("card-done");
+    }else{
+      cardLabel.textContent = "いまのタスク";
+      cardTask.textContent = list[p.index];
+      cardHint.innerHTML = "できたらタップ <span aria-hidden='true'>›</span>";
+      cardBtn.classList.remove("card-done");
+    }
+    var html = "";
+    for(var i=0;i<total;i++){
+      var cls = "dot" + (done || i < p.index ? " done" : "") + (!done && i===p.index ? " now" : "");
+      html += "<span class='"+cls+"'></span>";
+    }
+    dotsEl.innerHTML = html;
+    backBtn.disabled = p.index <= 0;
+  }
+  function advance(){
+    var list = tasks(); if(list.length===0){ showView("edit"); return; }
+    var p = prog();
+    if(p.index >= list.length){ p.index = 0; }
+    else { p.index += 1; }
+    save(); renderDeck();
+  }
+  function goBack(){
+    var p = prog(); if(p.index > 0){ p.index -= 1; save(); renderDeck(); }
+  }
+  function setMode(m){ mode = m; applyDailyReset(); renderDeck(); if(view==="list") renderList(); if(view==="edit") renderEdit(); }
+
+  /* ===== 一覧 ===== */
+  function renderList(){
+    syncTheme();
+    $("listTitle").textContent = (mode==="morning" ? "あさ" : "よる") + "の一覧";
+    var list = tasks(); var p = prog();
+    var ul = $("overviewList"); ul.innerHTML = "";
+    if(list.length===0){
+      ul.innerHTML = "<li class='list-item'><span class='name'>タスクがありません</span></li>"; return;
+    }
+    list.forEach(function(name, i){
+      var isDone = i < p.index; var isNow = i === p.index;
+      var li = document.createElement("li");
+      var btn = document.createElement("button"); btn.type="button";
+      btn.className = "list-item" + (isNow ? " is-now" : "") + (isDone ? " is-done" : "");
+      btn.innerHTML = (isDone ? "<span class='check'>✓</span>" : "<span class='num'>"+(i+1)+"</span>")
+        + "<span class='name'></span>" + (isNow ? "<span class='badge'>いまここ</span>" : "");
+      btn.querySelector(".name").textContent = name;
+      btn.addEventListener("click", function(){ prog().index = i; save(); showView("deck"); renderDeck(); });
+      li.appendChild(btn); ul.appendChild(li);
+    });
+  }
+
+  /* ===== 編集 ===== */
+  function renderEdit(){
+    syncTheme();
+    $("editTitle").textContent = (mode==="morning" ? "あさ" : "よる") + "のタスクを編集";
+    var wrap = $("editList"); wrap.innerHTML = "";
+    tasks().forEach(function(name, i){
+      var row = document.createElement("div"); row.className = "edit-row";
+      var input = document.createElement("input"); input.type="text"; input.value=name; input.maxLength=40;
+      input.setAttribute("aria-label", "タスク "+(i+1));
+      input.addEventListener("change", function(){
+        var v = input.value.trim();
+        if(v){ tasks()[i] = v; } else { input.value = tasks()[i]; }
+        // 編集で名前が変わっても進捗の位置はそのまま保持
+        save(); renderDeck();
+      });
+      var up = document.createElement("button"); up.type="button"; up.className="mini-btn"; up.textContent="↑"; up.disabled = i===0;
+      up.setAttribute("aria-label","上へ");
+      up.addEventListener("click", function(){ var a=tasks(); var t=a[i]; a[i]=a[i-1]; a[i-1]=t; save(); renderEdit(); renderDeck(); });
+      var down = document.createElement("button"); down.type="button"; down.className="mini-btn"; down.textContent="↓"; down.disabled = i===tasks().length-1;
+      down.setAttribute("aria-label","下へ");
+      down.addEventListener("click", function(){ var a=tasks(); var t=a[i]; a[i]=a[i+1]; a[i+1]=t; save(); renderEdit(); renderDeck(); });
+      var del = document.createElement("button"); del.type="button"; del.className="mini-btn"; del.textContent="×"; del.setAttribute("aria-label","削除");
+      del.addEventListener("click", function(){
+        tasks().splice(i,1);
+        if(prog().index > tasks().length) prog().index = tasks().length;
+        save(); renderEdit(); renderDeck();
+      });
+      row.appendChild(input); row.appendChild(up); row.appendChild(down); row.appendChild(del);
+      wrap.appendChild(row);
+    });
+    if(tasks().length===0){
+      var empty = document.createElement("p"); empty.className="view-sub"; empty.textContent="タスクがありません。下から追加してください。";
+      wrap.appendChild(empty);
+    }
+  }
+  function addTask(){
+    var input = $("newTaskInput"); var v = input.value.trim(); if(!v) return;
+    tasks().push(v); input.value=""; save(); renderEdit(); renderDeck();
+  }
+
+  /* ===== イベント ===== */
+  cardBtn.addEventListener("click", advance);
+  backBtn.addEventListener("click", goBack);
+  $("tabNight").addEventListener("click", function(){ setMode("night"); });
+  $("tabMorning").addEventListener("click", function(){ setMode("morning"); });
+  $("listTabNight").addEventListener("click", function(){ setMode("night"); });
+  $("listTabMorning").addEventListener("click", function(){ setMode("morning"); });
+  $("editTabNight").addEventListener("click", function(){ setMode("night"); });
+  $("editTabMorning").addEventListener("click", function(){ setMode("morning"); });
+  $("openListBtn").addEventListener("click", function(){ showView("list"); });
+  $("openEditBtn").addEventListener("click", function(){ showView("edit"); });
+  $("listCloseBtn").addEventListener("click", function(){ showView("deck"); renderDeck(); });
+  $("backToDeckBtn").addEventListener("click", function(){ showView("deck"); renderDeck(); });
+  $("editCloseBtn").addEventListener("click", function(){ showView("deck"); renderDeck(); });
+  $("editDoneBtn").addEventListener("click", function(){ showView("deck"); renderDeck(); });
+  $("addTaskBtn").addEventListener("click", addTask);
+  $("newTaskInput").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); addTask(); } });
+  $("resetBtn").addEventListener("click", function(){
+    state.tasks[mode] = DEFAULTS[mode].slice();
+    state.progress[mode] = freshProgress();
+    save(); renderEdit(); renderDeck();
+  });
+  $("exportBtn").addEventListener("click", function(){
+    var data = JSON.stringify({ tasks: state.tasks }, null, 2);
+    var blob = new Blob([data], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = "hitotsubu-tasks.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  });
+  $("importFile").addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0]; if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var parsed = JSON.parse(String(reader.result));
+        var t = parsed.tasks || parsed;
+        if(t && Array.isArray(t.night) && Array.isArray(t.morning)){
+          state.tasks.night = t.night.map(String).filter(function(s){ return s.trim(); });
+          state.tasks.morning = t.morning.map(String).filter(function(s){ return s.trim(); });
+          state.progress.night = freshProgress(); state.progress.morning = freshProgress();
+          save(); renderEdit(); renderDeck();
+        }
+      }catch(err){}
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  });
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden){ applyDailyReset(); if(view==="deck") renderDeck(); }
+  });
+
+  renderDeck();
+})();
+</script>
+</body>
+</html>
