@@ -59,7 +59,9 @@
     font-size:18px; font-weight:800; color:var(--ink-soft); padding:10px 22px;
   }
   .tab[aria-selected="true"]{background:var(--tab-active); color:#fff}
-  .card-zone{flex:1 1 auto; display:flex; align-items:center; justify-content:center; min-height:0; padding:10px 0 4px}
+  .card-zone{flex:0 0 auto; display:flex; align-items:center; justify-content:center; padding:22px 0 0}
+  /* dots + timer block: fills the space between the card and もどる, centered in it */
+  .mid-zone{flex:1 1 auto; min-height:0; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 0}
   .card{
     width:100%; height:36dvh; min-height:230px; max-height:460px;
     border:0; border-radius:34px; background:var(--card); color:#fff;
@@ -72,18 +74,24 @@
   .card-task{font-size:clamp(36px,9.5vw,54px); font-weight:800; line-height:1.3; word-break:break-word; padding:0 4px}
   .card-hint{font-size:17px; font-weight:700; opacity:.95; display:flex; align-items:center; gap:4px}
   .card-done{background:var(--tab-active)}
-  .dots{display:flex; justify-content:center; gap:10px; margin-top:8px; flex:0 0 auto; flex-wrap:wrap; padding:0 8px}
+  .dots{display:flex; justify-content:center; gap:10px; margin-top:0; flex:0 0 auto; flex-wrap:wrap; padding:0 8px}
   .dot{width:11px; height:11px; border-radius:999px; background:var(--dot); transition:all .2s}
   .dot.done{background:var(--dot-active); opacity:.55}
   .dot.now{width:30px; background:var(--dot-active); opacity:1}
-  /* ===== Timer area (ドットと「もどる」の間) ===== */
-  .timer-area{margin-top:12px; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:8px}
+  /* ===== Timer area (ドットとセットでカード↔もどるの中間に配置) ===== */
+  .timer-area{margin-top:14px; flex:0 0 auto; width:100%; display:flex; flex-direction:column; align-items:center; gap:8px}
   .timer-display{
     font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.05em;
     background:var(--pill-bg); border:1.5px solid var(--line); border-radius:14px;
     padding:3px 24px; min-width:128px; text-align:center; line-height:1.35;
   }
   .timer-display.is-done{background:var(--tab-active); color:#fff; border-color:var(--tab-active)}
+  .timer-top{display:flex; align-items:center; gap:8px}
+  .timer-reset-btn{
+    min-width:44px; min-height:44px; border-radius:999px; border:1.5px solid var(--line);
+    background:var(--pill-bg); color:var(--ink); font-size:19px; font-weight:800; line-height:1; padding:6px;
+  }
+  .timer-reset-btn:active{transform:scale(.95)}
   .timer-btns{display:flex; gap:10px; width:100%}
   .timer-btn{
     flex:1; min-height:48px; border-radius:999px; border:1.5px solid var(--line);
@@ -140,7 +148,7 @@
   .tool-btn{min-height:46px; border:1.5px solid var(--line); background:var(--pill-bg); color:var(--ink); border-radius:999px; padding:9px 16px; font-size:14px; font-weight:700}
   .danger{color:#B3261E}
   .hidden{display:none !important}
-  @media (max-height:640px){ .card{height:auto; flex:1 1 auto; max-height:none} }
+  @media (max-height:640px){ .card{height:auto; min-height:190px; max-height:none} }
   @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
 </style>
 </head>
@@ -171,20 +179,25 @@
       </button>
     </div>
 
-    <div class="dots" id="dots" aria-hidden="true"></div>
+    <div class="mid-zone">
+      <div class="dots" id="dots" aria-hidden="true"></div>
 
-    <div class="timer-area" aria-label="タイマー">
-      <div class="timer-display" id="timerDisplay" role="timer">0:00</div>
-      <div class="timer-btns">
-        <button class="timer-btn" id="countdownBtn" type="button" aria-pressed="false">10秒カウント</button>
-        <button class="timer-btn" id="stopwatchBtn" type="button" aria-pressed="false">経過時間計測</button>
+      <div class="timer-area" aria-label="タイマー">
+        <div class="timer-top">
+          <div class="timer-display" id="timerDisplay" role="timer">0:00</div>
+          <button class="timer-reset-btn" id="timerResetBtn" type="button" aria-label="いまのタスクの計測時間をリセット" title="計測時間をリセット">↩</button>
+        </div>
+        <div class="timer-btns">
+          <button class="timer-btn" id="countdownBtn" type="button" aria-pressed="false">10秒カウント</button>
+          <button class="timer-btn" id="stopwatchBtn" type="button" aria-pressed="false">経過時間計測</button>
+        </div>
       </div>
     </div>
 
     <div class="back-row">
       <button class="back-btn" id="backBtn" type="button">← もどる</button>
     </div>
-    <div class="saved-note">この端末に自動保存中 ・ 5:30／16:00の切り替わりで、終わった時間帯の進捗はリセットされます</div>
+    <div class="saved-note">この端末に自動保存中 ・ 計測時間はタスクごとに保存 ・ 5:30／16:00の切り替わりで進捗はリセットされます</div>
   </main>
 
   <!-- ===== 一覧 ===== -->
@@ -210,7 +223,7 @@
       <h2 class="view-title" id="editTitle">タスクを編集</h2>
       <button class="ghost-btn" id="editCloseBtn" type="button">✕ 閉じる</button>
     </div>
-    <p class="view-sub">文字を直すとその場で保存されます。↑↓で順番替え、×で削除できます。編集したタスクはこの端末に残ります。</p>
+    <p class="view-sub">文字を直すとその場で保存されます。↑↓で順番替え、×で削除できます。編集したタスクはこの端末に残ります。順番を変えても、タスクごとの計測時間はそのまま残ります。</p>
     <div class="tabs-wrap" style="margin:0 0 16px; justify-content:flex-start">
       <div class="tabs">
         <button class="tab" id="editTabNight" type="button">よる</button>
@@ -239,6 +252,35 @@
     night: ["手を洗う","荷物を整理する","着替えを用意する","シャワーを浴びる","化粧水","ドライヤー","歯磨き"],
     morning: ["水を飲む","顔を洗う","朝ごはんを食べる","歯磨きする","着替える","メイク","ヘアセット","荷物を準備する"]
   };
+  /* タスクには安定したIDを持たせる。計測時間はこのIDに紐づけて保存するので、
+     順番替え（↑↓）や名前の変更ではIDが変わらず、時間はそのまま維持される */
+  var idCounter = 0;
+  function newId(){
+    idCounter += 1;
+    return "t" + Date.now().toString(36) + "-" + idCounter + "-" + Math.floor(Math.random()*1e6).toString(36);
+  }
+  function defaultId(mode, i){ return "d-" + mode + "-" + i; }
+  function defaultTasks(mode){
+    return DEFAULTS[mode].map(function(name, i){ return { id: defaultId(mode, i), name: name }; });
+  }
+  // 旧形式（文字列の配列）・新形式（{id,name}）どちらも {id,name} にそろえる
+  function normalizeTasks(list, mode){
+    var used = {};
+    return list.map(function(item){
+      if(typeof item === "string"){
+        var di = DEFAULTS[mode].indexOf(item);
+        var id = (di >= 0 && !used[defaultId(mode, di)]) ? defaultId(mode, di) : newId();
+        used[id] = true;
+        return { id: id, name: item };
+      }
+      if(item && typeof item.name === "string"){
+        var id2 = (typeof item.id === "string" && item.id && !used[item.id]) ? item.id : newId();
+        used[id2] = true;
+        return { id: id2, name: item.name };
+      }
+      return { id: newId(), name: String(item) };
+    }).filter(function(t){ return t.name.trim() !== ""; });
+  }
   function initialMode(){
     var d = new Date(); var mins = d.getHours()*60 + d.getMinutes();
     // 5:30(330) 〜 15:59(959) は あさ、それ以外は よる
@@ -267,8 +309,10 @@
   function defaultState(){
     var now = new Date();
     return {
-      tasks: { night: DEFAULTS.night.slice(), morning: DEFAULTS.morning.slice() },
+      tasks: { night: defaultTasks("night"), morning: defaultTasks("morning") },
       progress: { night: freshProgress(), morning: freshProgress() },
+      times: {},
+      running: null,
       lastCycle: { period: periodAt(now), id: cycleIdAt(now) }
     };
   }
@@ -282,6 +326,15 @@
       ["night","morning"].forEach(function(k){
         if(!s.progress[k] || typeof s.progress[k].index !== "number") s.progress[k] = freshProgress();
       });
+      // タスクを {id,name} 形式へ移行し、タスクごとの計測時間を引き継ぐ
+      s.tasks.night = normalizeTasks(s.tasks.night, "night");
+      s.tasks.morning = normalizeTasks(s.tasks.morning, "morning");
+      if(!s.times || typeof s.times !== "object") s.times = {};
+      Object.keys(s.times).forEach(function(k){
+        if(typeof s.times[k] !== "number" || !(s.times[k] >= 0)) delete s.times[k];
+      });
+      if(!s.running || typeof s.running.id !== "string" || typeof s.running.startedAt !== "number") s.running = null;
+      pruneTimesIn(s);
       // 旧データ（境目記録なし）は今の時間帯を記録するだけにして、進捗はそのまま引き継ぐ
       if(!s.lastCycle || typeof s.lastCycle.id !== "string" ||
          (s.lastCycle.period !== "night" && s.lastCycle.period !== "morning")){
@@ -292,6 +345,14 @@
     }catch(e){ return defaultState(); }
   }
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+  // 存在しないタスクIDの計測時間を掃除する
+  function pruneTimesIn(s){
+    var valid = {};
+    ["night","morning"].forEach(function(k){ s.tasks[k].forEach(function(t){ valid[t.id] = true; }); });
+    Object.keys(s.times).forEach(function(id){ if(!valid[id]) delete s.times[id]; });
+    if(s.running && !valid[s.running.id]) s.running = null;
+  }
+  function pruneTimes(){ pruneTimesIn(state); }
 
   var state = load();
   var mode = initialMode();
@@ -334,7 +395,7 @@
       cardTask.textContent = "編集から追加してね";
       cardHint.textContent = "タスクを編集へ ›";
       cardBtn.classList.remove("card-done");
-      dotsEl.innerHTML = ""; backBtn.disabled = true; return;
+      dotsEl.innerHTML = ""; backBtn.disabled = true; refreshTimer(); return;
     }
     var done = p.index >= total;
     countLabel.textContent = Math.min(p.index+1, total) + " / " + total;
@@ -345,7 +406,7 @@
       cardBtn.classList.add("card-done");
     }else{
       cardLabel.textContent = "いまのタスク";
-      cardTask.textContent = list[p.index];
+      cardTask.textContent = list[p.index].name;
       cardHint.innerHTML = "できたらタップ <span aria-hidden='true'>›</span>";
       cardBtn.classList.remove("card-done");
     }
@@ -356,8 +417,10 @@
     }
     dotsEl.innerHTML = html;
     backBtn.disabled = p.index <= 0;
+    refreshTimer();
   }
   function advance(){
+    pauseRunning(); // 計測中なら止めて、そのタスクの累計に保存してから次へ
     var list = tasks(); if(list.length===0){ showView("edit"); return; }
     var p = prog();
     if(p.index >= list.length){ p.index = 0; }
@@ -365,10 +428,12 @@
     save(); renderDeck();
   }
   function goBack(){
+    pauseRunning();
     var p = prog(); if(p.index > 0){ p.index -= 1; save(); renderDeck(); }
   }
   function setMode(m){
     if(m === mode) return;
+    pauseRunning();
     mode = m;
     // 手動のタブ切り替えではリセットしない（進捗はリストごとにそのまま残る）
     renderDeck(); if(view==="list") renderList(); if(view==="edit") renderEdit();
@@ -396,6 +461,9 @@
     if(prevPeriod === nowPeriod){
       state.progress[nowPeriod === "night" ? "morning" : "night"] = freshProgress();
     }
+    // 進捗リセットのタイミングでは、タスクごとの計測時間もリセットしてよい（ユーザー了承済み）
+    state.times = {};
+    state.running = null;
     state.lastCycle = { period: nowPeriod, id: nowId };
     save();
     return true;
@@ -417,15 +485,15 @@
     if(list.length===0){
       ul.innerHTML = "<li class='list-item'><span class='name'>タスクがありません</span></li>"; return;
     }
-    list.forEach(function(name, i){
+    list.forEach(function(task, i){
       var isDone = i < p.index; var isNow = i === p.index;
       var li = document.createElement("li");
       var btn = document.createElement("button"); btn.type="button";
       btn.className = "list-item" + (isNow ? " is-now" : "") + (isDone ? " is-done" : "");
       btn.innerHTML = (isDone ? "<span class='check'>✓</span>" : "<span class='num'>"+(i+1)+"</span>")
         + "<span class='name'></span>" + (isNow ? "<span class='badge'>いまここ</span>" : "");
-      btn.querySelector(".name").textContent = name;
-      btn.addEventListener("click", function(){ prog().index = i; save(); showView("deck"); renderDeck(); });
+      btn.querySelector(".name").textContent = task.name;
+      btn.addEventListener("click", function(){ pauseRunning(); prog().index = i; save(); showView("deck"); renderDeck(); });
       li.appendChild(btn); ul.appendChild(li);
     });
   }
@@ -435,14 +503,14 @@
     syncTheme();
     $("editTitle").textContent = (mode==="morning" ? "あさ" : "よる") + "のタスクを編集";
     var wrap = $("editList"); wrap.innerHTML = "";
-    tasks().forEach(function(name, i){
+    tasks().forEach(function(task, i){
       var row = document.createElement("div"); row.className = "edit-row";
-      var input = document.createElement("input"); input.type="text"; input.value=name; input.maxLength=40;
+      var input = document.createElement("input"); input.type="text"; input.value=task.name; input.maxLength=40;
       input.setAttribute("aria-label", "タスク "+(i+1));
       input.addEventListener("change", function(){
         var v = input.value.trim();
-        if(v){ tasks()[i] = v; } else { input.value = tasks()[i]; }
-        // 編集で名前が変わっても進捗の位置はそのまま保持
+        if(v){ tasks()[i].name = v; } else { input.value = tasks()[i].name; }
+        // 名前を変えてもIDは変わらないので、進捗の位置も計測時間もそのまま保持
         save(); renderDeck();
       });
       var up = document.createElement("button"); up.type="button"; up.className="mini-btn"; up.textContent="↑"; up.disabled = i===0;
@@ -453,7 +521,11 @@
       down.addEventListener("click", function(){ var a=tasks(); var t=a[i]; a[i]=a[i+1]; a[i+1]=t; save(); renderEdit(); renderDeck(); });
       var del = document.createElement("button"); del.type="button"; del.className="mini-btn"; del.textContent="×"; del.setAttribute("aria-label","削除");
       del.addEventListener("click", function(){
-        tasks().splice(i,1);
+        var removed = tasks().splice(i,1)[0];
+        if(removed){
+          delete state.times[removed.id];
+          if(state.running && state.running.id === removed.id) state.running = null;
+        }
         if(prog().index > tasks().length) prog().index = tasks().length;
         save(); renderEdit(); renderDeck();
       });
@@ -467,7 +539,7 @@
   }
   function addTask(){
     var input = $("newTaskInput"); var v = input.value.trim(); if(!v) return;
-    tasks().push(v); input.value=""; save(); renderEdit(); renderDeck();
+    tasks().push({ id: newId(), name: v }); input.value=""; save(); renderEdit(); renderDeck();
   }
 
   /* ===== イベント ===== */
@@ -488,12 +560,18 @@
   $("addTaskBtn").addEventListener("click", addTask);
   $("newTaskInput").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); addTask(); } });
   $("resetBtn").addEventListener("click", function(){
-    state.tasks[mode] = DEFAULTS[mode].slice();
+    // 進捗リセットに合わせて、この時間帯の計測時間もリセットする（ユーザー了承済み）
+    var cleared = {};
+    state.tasks[mode].forEach(function(t){ cleared[t.id] = true; });
+    state.tasks[mode] = defaultTasks(mode);
+    state.tasks[mode].forEach(function(t){ cleared[t.id] = true; });
+    Object.keys(cleared).forEach(function(id){ delete state.times[id]; });
+    if(state.running && cleared[state.running.id]) state.running = null;
     state.progress[mode] = freshProgress();
     save(); renderEdit(); renderDeck();
   });
   $("exportBtn").addEventListener("click", function(){
-    var data = JSON.stringify({ tasks: state.tasks }, null, 2);
+    var data = JSON.stringify({ tasks: state.tasks, taskTimes: state.times }, null, 2);
     var blob = new Blob([data], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a"); a.href = url; a.download = "hitotsubu-tasks.json";
@@ -508,8 +586,18 @@
         var parsed = JSON.parse(String(reader.result));
         var t = parsed.tasks || parsed;
         if(t && Array.isArray(t.night) && Array.isArray(t.morning)){
-          state.tasks.night = t.night.map(String).filter(function(s){ return s.trim(); });
-          state.tasks.morning = t.morning.map(String).filter(function(s){ return s.trim(); });
+          state.tasks.night = normalizeTasks(t.night, "night");
+          state.tasks.morning = normalizeTasks(t.morning, "morning");
+          // 計測時間がファイルに含まれていれば引き継ぎ、無ければ掃除だけする
+          if(parsed.taskTimes && typeof parsed.taskTimes === "object"){
+            state.times = {};
+            Object.keys(parsed.taskTimes).forEach(function(k){
+              var v = parsed.taskTimes[k];
+              if(typeof v === "number" && v >= 0) state.times[k] = v;
+            });
+          }
+          state.running = null;
+          pruneTimes();
           state.progress.night = freshProgress(); state.progress.morning = freshProgress();
           save(); renderEdit(); renderDeck();
         }
@@ -518,71 +606,110 @@
     };
     reader.readAsText(file);
   });
-  /* ===== タイマー（10秒カウント／経過時間計測・表示は共通） ===== */
+  /* ===== タイマー（10秒カウント／経過時間計測はタスクごと） ===== */
   var timerDisplay = $("timerDisplay"), countdownBtn = $("countdownBtn"), stopwatchBtn = $("stopwatchBtn");
-  var timer = { kind: null, deadline: 0, startedAt: 0, accumulated: 0, intId: null };
-  // kind: null | "countdown" | "stopwatch" | "stopwatch-paused"
+  var timer = { kind: null, deadline: 0 };
+  // kind: null | "countdown" | "stopwatch"
+  // 経過時間計測はタスクIDごとに state.times（累計ms）へ保存し、計測中は
+  // state.running = {id, startedAt} を保持する。IDは順番替え・改名では変わらないので、
+  // ひとつのタスクの計測時間は並び順が変わっても維持される。
   function fmtClock(totalSec){
     var s = Math.max(0, Math.floor(totalSec));
     var m = Math.floor(s / 60);
     return m + ":" + String(s % 60).padStart(2, "0");
   }
   function showTimer(sec){ timerDisplay.textContent = fmtClock(sec); }
-  function stopTick(){ if(timer.intId){ clearInterval(timer.intId); timer.intId = null; } }
+  function currentTask(){
+    var l = tasks(); var p = prog();
+    return (l.length && p.index < l.length) ? l[p.index] : null;
+  }
+  function elapsedOf(id){
+    var base = state.times[id] || 0;
+    if(state.running && state.running.id === id) base += Date.now() - state.running.startedAt;
+    return base;
+  }
+  function pauseRunning(){
+    if(state.running){
+      state.times[state.running.id] = elapsedOf(state.running.id);
+      state.running = null;
+      save();
+    }
+  }
+  function isCurrentRunning(){
+    var t = currentTask();
+    return !!(t && state.running && state.running.id === t.id);
+  }
   function syncTimerBtns(){
     countdownBtn.classList.toggle("is-running", timer.kind === "countdown");
     countdownBtn.setAttribute("aria-pressed", timer.kind === "countdown" ? "true" : "false");
-    stopwatchBtn.classList.toggle("is-running", timer.kind === "stopwatch");
-    stopwatchBtn.setAttribute("aria-pressed", timer.kind === "stopwatch" ? "true" : "false");
+    var run = isCurrentRunning();
+    stopwatchBtn.classList.toggle("is-running", run);
+    stopwatchBtn.setAttribute("aria-pressed", run ? "true" : "false");
   }
   function renderStopwatch(){
-    var elapsed = timer.accumulated + (timer.kind === "stopwatch" ? (Date.now() - timer.startedAt) : 0);
-    showTimer(Math.floor(elapsed / 1000));
+    var t = currentTask();
+    showTimer(t ? Math.floor(elapsedOf(t.id) / 1000) : 0);
+  }
+  // カードのタスクが切り替わったら、そのタスクの計測時間を表示し直す
+  function refreshTimer(){
+    if(timer.kind === "stopwatch") renderStopwatch();
+    syncTimerBtns();
   }
   function startCountdown(){
-    stopTick();
-    timer.kind = "countdown"; timer.accumulated = 0;
+    timer.kind = "countdown";
     timer.deadline = Date.now() + 10000;
     timerDisplay.classList.remove("is-done");
     showTimer(10); syncTimerBtns();
-    timer.intId = setInterval(function(){
-      var remain = timer.deadline - Date.now();
-      if(remain <= 0){
-        stopTick(); timer.kind = null;
-        showTimer(0); syncTimerBtns();
-        timerDisplay.classList.add("is-done");
-        setTimeout(function(){ timerDisplay.classList.remove("is-done"); }, 1500);
-        if(navigator.vibrate){ try{ navigator.vibrate(200); }catch(e){} }
-        return;
-      }
-      showTimer(Math.ceil(remain / 1000));
-    }, 100);
   }
   function cancelCountdown(){
-    stopTick(); timer.kind = null;
+    timer.kind = null;
     showTimer(0); syncTimerBtns();
   }
+  function finishCountdown(){
+    timer.kind = null;
+    showTimer(0); syncTimerBtns();
+    timerDisplay.classList.add("is-done");
+    setTimeout(function(){ timerDisplay.classList.remove("is-done"); }, 1500);
+    if(navigator.vibrate){ try{ navigator.vibrate(200); }catch(e){} }
+  }
   function toggleStopwatch(){
-    if(timer.kind === "stopwatch"){
-      // 一時停止（表示はそのまま保持、もう一度押すと続きから再開）
-      stopTick();
-      timer.accumulated += Date.now() - timer.startedAt;
-      timer.kind = "stopwatch-paused";
-      renderStopwatch(); syncTimerBtns();
-      return;
+    var t = currentTask(); if(!t) return;
+    if(state.running && state.running.id === t.id){
+      pauseRunning(); // 一時停止（累計はこのタスクに保存されたまま、再開で続きから）
+    }else{
+      pauseRunning(); // ほかのタスクが計測中なら先に止めて、そのタスクの累計へ保存
+      state.running = { id: t.id, startedAt: Date.now() };
+      save();
     }
-    // カウントダウン中なら止めて、ストップウォッチを0から開始
-    stopTick();
-    if(timer.kind !== "stopwatch-paused") timer.accumulated = 0;
-    timer.kind = "stopwatch"; timer.startedAt = Date.now();
+    timer.kind = "stopwatch";
     timerDisplay.classList.remove("is-done");
     renderStopwatch(); syncTimerBtns();
-    timer.intId = setInterval(renderStopwatch, 100);
   }
   countdownBtn.addEventListener("click", function(){
     if(timer.kind === "countdown"){ cancelCountdown(); } else { startCountdown(); }
   });
   stopwatchBtn.addEventListener("click", toggleStopwatch);
+  // ↩：いま表示中のタスクの計測時間だけをリセットする（ほかのタスクの時間は触らない）
+  $("timerResetBtn").addEventListener("click", function(){
+    var t = currentTask(); if(!t) return;
+    if(state.running && state.running.id === t.id) state.running = null;
+    delete state.times[t.id];
+    save();
+    if(timer.kind === "stopwatch") renderStopwatch();
+    syncTimerBtns();
+  });
+  // 計測中・カウントダウン中の表示更新
+  setInterval(function(){
+    if(timer.kind === "countdown"){
+      var remain = timer.deadline - Date.now();
+      if(remain <= 0){ finishCountdown(); return; }
+      showTimer(Math.ceil(remain / 1000));
+    }else if(timer.kind === "stopwatch" && state.running){
+      renderStopwatch();
+    }
+  }, 100);
+  // 開き直した時点で計測中だったら、そのまま計測表示を続ける
+  if(state.running) timer.kind = "stopwatch";
 
   /* ===== 境目チェック：起動時＋開いている間も定期的に ===== */
   checkBoundary();
