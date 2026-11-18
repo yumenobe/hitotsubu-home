@@ -48,8 +48,8 @@
     font-size:15px; font-weight:700; display:inline-flex; align-items:center; gap:6px;
   }
   .ghost-btn:active{transform:scale(.98)}
-  /* tabs pushed down: 24px gap from the top row */
-  .tabs-wrap{display:flex; justify-content:center; margin-top:24px; flex:0 0 auto}
+  /* tabs: 14px gap from the top row (詰めてタイマーエリアの場所を確保) */
+  .tabs-wrap{display:flex; justify-content:center; margin-top:14px; flex:0 0 auto}
   .tabs{
     display:inline-flex; background:var(--pill-bg); border:1.5px solid var(--line);
     border-radius:999px; padding:4px; gap:4px; box-shadow:0 2px 10px rgba(0,0,0,.05);
@@ -61,7 +61,7 @@
   .tab[aria-selected="true"]{background:var(--tab-active); color:#fff}
   .card-zone{flex:1 1 auto; display:flex; align-items:center; justify-content:center; min-height:0; padding:10px 0 4px}
   .card{
-    width:100%; height:40dvh; min-height:250px; max-height:460px;
+    width:100%; height:36dvh; min-height:230px; max-height:460px;
     border:0; border-radius:34px; background:var(--card); color:#fff;
     display:flex; flex-direction:column; align-items:center; justify-content:space-between;
     padding:26px 22px 24px; text-align:center; position:relative;
@@ -76,8 +76,23 @@
   .dot{width:11px; height:11px; border-radius:999px; background:var(--dot); transition:all .2s}
   .dot.done{background:var(--dot-active); opacity:.55}
   .dot.now{width:30px; background:var(--dot-active); opacity:1}
-  /* back button pushed down: 20px gap from dots */
-  .back-row{margin-top:20px; flex:0 0 auto}
+  /* ===== Timer area (ドットと「もどる」の間) ===== */
+  .timer-area{margin-top:12px; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:8px}
+  .timer-display{
+    font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.05em;
+    background:var(--pill-bg); border:1.5px solid var(--line); border-radius:14px;
+    padding:3px 24px; min-width:128px; text-align:center; line-height:1.35;
+  }
+  .timer-display.is-done{background:var(--tab-active); color:#fff; border-color:var(--tab-active)}
+  .timer-btns{display:flex; gap:10px; width:100%}
+  .timer-btn{
+    flex:1; min-height:48px; border-radius:999px; border:1.5px solid var(--line);
+    background:var(--pill-bg); color:var(--ink); font-size:16px; font-weight:800; padding:10px 8px;
+  }
+  .timer-btn:active{transform:scale(.98)}
+  .timer-btn.is-running{background:var(--tab-active); color:#fff; border-color:var(--tab-active)}
+  /* back button: 10px gap below the timer area */
+  .back-row{margin-top:10px; flex:0 0 auto}
   .back-btn{
     min-height:48px; border:0; background:transparent; color:var(--ink);
     font-size:18px; font-weight:700; display:inline-flex; align-items:center; gap:8px; padding:10px 12px 10px 2px;
@@ -158,10 +173,18 @@
 
     <div class="dots" id="dots" aria-hidden="true"></div>
 
+    <div class="timer-area" aria-label="タイマー">
+      <div class="timer-display" id="timerDisplay" role="timer">0:00</div>
+      <div class="timer-btns">
+        <button class="timer-btn" id="countdownBtn" type="button" aria-pressed="false">10秒カウント</button>
+        <button class="timer-btn" id="stopwatchBtn" type="button" aria-pressed="false">経過時間計測</button>
+      </div>
+    </div>
+
     <div class="back-row">
       <button class="back-btn" id="backBtn" type="button">← もどる</button>
     </div>
-    <div class="saved-note">この端末に自動保存中 ・ 日付が変わると進捗はリセットされます</div>
+    <div class="saved-note">この端末に自動保存中 ・ あさ／よるを切り替えると進捗はリセットされます</div>
   </main>
 
   <!-- ===== 一覧 ===== -->
@@ -216,18 +239,13 @@
     night: ["手を洗う","荷物を整理する","着替えを用意する","シャワーを浴びる","化粧水","ドライヤー","歯磨き"],
     morning: ["水を飲む","顔を洗う","朝ごはんを食べる","歯磨きする","着替える","メイク","ヘアセット","荷物を準備する"]
   };
-  function todayStr(){
-    var d = new Date();
-    var m = String(d.getMonth()+1).padStart(2,"0");
-    var day = String(d.getDate()).padStart(2,"0");
-    return d.getFullYear()+"-"+m+"-"+day;
-  }
   function initialMode(){
     var d = new Date(); var mins = d.getHours()*60 + d.getMinutes();
     // 5:30(330) 〜 15:59(959) は あさ、それ以外は よる
     return (mins >= 330 && mins <= 959) ? "morning" : "night";
   }
-  function freshProgress(){ return { date: todayStr(), index: 0 }; }
+  // 進捗リセットは「あさ／よる切り替え」のタイミングだけ。日付ではリセットしない
+  function freshProgress(){ return { index: 0 }; }
   function defaultState(){
     return {
       tasks: { night: DEFAULTS.night.slice(), morning: DEFAULTS.morning.slice() },
@@ -248,16 +266,8 @@
     }catch(e){ return defaultState(); }
   }
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
-  function applyDailyReset(){
-    var t = todayStr(); var changed = false;
-    ["night","morning"].forEach(function(k){
-      if(state.progress[k].date !== t){ state.progress[k] = { date: t, index: 0 }; changed = true; }
-    });
-    if(changed) save();
-  }
 
   var state = load();
-  applyDailyReset();
   var mode = initialMode();
   var view = "deck"; // deck | list | edit
 
@@ -331,7 +341,14 @@
   function goBack(){
     var p = prog(); if(p.index > 0){ p.index -= 1; save(); renderDeck(); }
   }
-  function setMode(m){ mode = m; applyDailyReset(); renderDeck(); if(view==="list") renderList(); if(view==="edit") renderEdit(); }
+  function setMode(m){
+    if(m === mode) return;
+    mode = m;
+    // 切り替えた先のリストは最初から（進捗リセット）
+    state.progress[mode] = freshProgress();
+    save();
+    renderDeck(); if(view==="list") renderList(); if(view==="edit") renderEdit();
+  }
 
   /* ===== 一覧 ===== */
   function renderList(){
@@ -443,9 +460,71 @@
     };
     reader.readAsText(file);
   });
-  document.addEventListener("visibilitychange", function(){
-    if(!document.hidden){ applyDailyReset(); if(view==="deck") renderDeck(); }
+  /* ===== タイマー（10秒カウント／経過時間計測・表示は共通） ===== */
+  var timerDisplay = $("timerDisplay"), countdownBtn = $("countdownBtn"), stopwatchBtn = $("stopwatchBtn");
+  var timer = { kind: null, deadline: 0, startedAt: 0, accumulated: 0, intId: null };
+  // kind: null | "countdown" | "stopwatch" | "stopwatch-paused"
+  function fmtClock(totalSec){
+    var s = Math.max(0, Math.floor(totalSec));
+    var m = Math.floor(s / 60);
+    return m + ":" + String(s % 60).padStart(2, "0");
+  }
+  function showTimer(sec){ timerDisplay.textContent = fmtClock(sec); }
+  function stopTick(){ if(timer.intId){ clearInterval(timer.intId); timer.intId = null; } }
+  function syncTimerBtns(){
+    countdownBtn.classList.toggle("is-running", timer.kind === "countdown");
+    countdownBtn.setAttribute("aria-pressed", timer.kind === "countdown" ? "true" : "false");
+    stopwatchBtn.classList.toggle("is-running", timer.kind === "stopwatch");
+    stopwatchBtn.setAttribute("aria-pressed", timer.kind === "stopwatch" ? "true" : "false");
+  }
+  function renderStopwatch(){
+    var elapsed = timer.accumulated + (timer.kind === "stopwatch" ? (Date.now() - timer.startedAt) : 0);
+    showTimer(Math.floor(elapsed / 1000));
+  }
+  function startCountdown(){
+    stopTick();
+    timer.kind = "countdown"; timer.accumulated = 0;
+    timer.deadline = Date.now() + 10000;
+    timerDisplay.classList.remove("is-done");
+    showTimer(10); syncTimerBtns();
+    timer.intId = setInterval(function(){
+      var remain = timer.deadline - Date.now();
+      if(remain <= 0){
+        stopTick(); timer.kind = null;
+        showTimer(0); syncTimerBtns();
+        timerDisplay.classList.add("is-done");
+        setTimeout(function(){ timerDisplay.classList.remove("is-done"); }, 1500);
+        if(navigator.vibrate){ try{ navigator.vibrate(200); }catch(e){} }
+        return;
+      }
+      showTimer(Math.ceil(remain / 1000));
+    }, 100);
+  }
+  function cancelCountdown(){
+    stopTick(); timer.kind = null;
+    showTimer(0); syncTimerBtns();
+  }
+  function toggleStopwatch(){
+    if(timer.kind === "stopwatch"){
+      // 一時停止（表示はそのまま保持、もう一度押すと続きから再開）
+      stopTick();
+      timer.accumulated += Date.now() - timer.startedAt;
+      timer.kind = "stopwatch-paused";
+      renderStopwatch(); syncTimerBtns();
+      return;
+    }
+    // カウントダウン中なら止めて、ストップウォッチを0から開始
+    stopTick();
+    if(timer.kind !== "stopwatch-paused") timer.accumulated = 0;
+    timer.kind = "stopwatch"; timer.startedAt = Date.now();
+    timerDisplay.classList.remove("is-done");
+    renderStopwatch(); syncTimerBtns();
+    timer.intId = setInterval(renderStopwatch, 100);
+  }
+  countdownBtn.addEventListener("click", function(){
+    if(timer.kind === "countdown"){ cancelCountdown(); } else { startCountdown(); }
   });
+  stopwatchBtn.addEventListener("click", toggleStopwatch);
 
   renderDeck();
 })();
