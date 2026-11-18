@@ -48,8 +48,8 @@
     font-size:15px; font-weight:700; display:inline-flex; align-items:center; gap:6px;
   }
   .ghost-btn:active{transform:scale(.98)}
-  /* tabs: 14px gap from the top row (詰めてタイマーエリアの場所を確保) */
-  .tabs-wrap{display:flex; justify-content:center; margin-top:14px; flex:0 0 auto}
+  /* tabs: 20px gap from the top row (カードまでの間隔と等間隔) */
+  .tabs-wrap{display:flex; justify-content:center; margin-top:20px; flex:0 0 auto}
   .tabs{
     display:inline-flex; background:var(--pill-bg); border:1.5px solid var(--line);
     border-radius:999px; padding:4px; gap:4px; box-shadow:0 2px 10px rgba(0,0,0,.05);
@@ -59,7 +59,8 @@
     font-size:18px; font-weight:800; color:var(--ink-soft); padding:10px 22px;
   }
   .tab[aria-selected="true"]{background:var(--tab-active); color:#fff}
-  .card-zone{flex:0 0 auto; display:flex; align-items:center; justify-content:center; padding:22px 0 0}
+  /* card zone: flexes so the card sits around the vertical middle; min gap under the tabs is 20px (等間隔) */
+  .card-zone{flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:20px 0 0}
   /* dots + timer block: fills the space between the card and もどる, centered in it */
   .mid-zone{flex:1 1 auto; min-height:0; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 0}
   .card{
@@ -185,7 +186,7 @@
       <div class="timer-area" aria-label="タイマー">
         <div class="timer-top">
           <div class="timer-display" id="timerDisplay" role="timer">0:00</div>
-          <button class="timer-reset-btn" id="timerResetBtn" type="button" aria-label="いまのタスクの計測時間をリセット" title="計測時間をリセット">↩</button>
+          <button class="timer-reset-btn" id="timerResetBtn" type="button" aria-label="いまのタスクの計測時間をリセット" title="計測時間をリセット">↩︎</button>
         </div>
         <div class="timer-btns">
           <button class="timer-btn" id="countdownBtn" type="button" aria-pressed="false">10秒カウント</button>
@@ -716,6 +717,16 @@
   setInterval(applyBoundary, 20000);
   document.addEventListener("visibilitychange", function(){ if(!document.hidden) applyBoundary(); });
   window.addEventListener("focus", applyBoundary);
+
+  /* ===== Service Worker: 更新をすぐ反映する ===== */
+  if("serviceWorker" in navigator){
+    (async function(){
+      try{
+        const registration = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
+        await registration.update();
+      }catch(e){ /* sw.js が無い環境では何もしない */ }
+    })();
+  }
 
   renderDeck();
 })();
