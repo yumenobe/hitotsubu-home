@@ -184,7 +184,7 @@
     <div class="back-row">
       <button class="back-btn" id="backBtn" type="button">← もどる</button>
     </div>
-    <div class="saved-note">この端末に自動保存中 ・ あさ／よるを切り替えると進捗はリセットされます</div>
+    <div class="saved-note">この端末に自動保存中 ・ 5:30／16:00の切り替わりで、終わった時間帯の進捗はリセットされます</div>
   </main>
 
   <!-- ===== 一覧 ===== -->
@@ -244,12 +244,32 @@
     // 5:30(330) 〜 15:59(959) は あさ、それ以外は よる
     return (mins >= 330 && mins <= 959) ? "morning" : "night";
   }
-  // 進捗リセットは「あさ／よる切り替え」のタイミングだけ。日付ではリセットしない
+  function periodAt(d){
+    var mins = d.getHours()*60 + d.getMinutes();
+    return (mins >= 330 && mins <= 959) ? "morning" : "night";
+  }
+  function dateKey(d){
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  // その時刻が属する時間帯インスタンスのID。
+  // よるは16:00〜翌5:29までを1区切りとし、開始した日の日付で数える
+  function cycleIdAt(d){
+    var period = periodAt(d);
+    if(period === "morning") return "morning-" + dateKey(d);
+    var mins = d.getHours()*60 + d.getMinutes();
+    if(mins >= 960) return "night-" + dateKey(d);
+    var prev = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+    return "night-" + dateKey(prev);
+  }
+  // 進捗リセットは時間帯の境目（5:30／16:00）だけ。
+  // 手動のタブ切り替えや日付変更（0時）ではリセットしない
   function freshProgress(){ return { index: 0 }; }
   function defaultState(){
+    var now = new Date();
     return {
       tasks: { night: DEFAULTS.night.slice(), morning: DEFAULTS.morning.slice() },
-      progress: { night: freshProgress(), morning: freshProgress() }
+      progress: { night: freshProgress(), morning: freshProgress() },
+      lastCycle: { period: periodAt(now), id: cycleIdAt(now) }
     };
   }
   function load(){
@@ -262,6 +282,12 @@
       ["night","morning"].forEach(function(k){
         if(!s.progress[k] || typeof s.progress[k].index !== "number") s.progress[k] = freshProgress();
       });
+      // 旧データ（境目記録なし）は今の時間帯を記録するだけにして、進捗はそのまま引き継ぐ
+      if(!s.lastCycle || typeof s.lastCycle.id !== "string" ||
+         (s.lastCycle.period !== "night" && s.lastCycle.period !== "morning")){
+        var now = new Date();
+        s.lastCycle = { period: periodAt(now), id: cycleIdAt(now) };
+      }
       return s;
     }catch(e){ return defaultState(); }
   }
@@ -344,10 +370,42 @@
   function setMode(m){
     if(m === mode) return;
     mode = m;
-    // 切り替えた先のリストは最初から（進捗リセット）
-    state.progress[mode] = freshProgress();
-    save();
+    // 手動のタブ切り替えではリセットしない（進捗はリストごとにそのまま残る）
     renderDeck(); if(view==="list") renderList(); if(view==="edit") renderEdit();
+  }
+
+  /* ===== 時間帯の境目（5:30／16:00）で終わった時間帯をリセット ===== */
+  // 例：よるの途中で5:30を過ぎたら、よるの進捗が最初に戻る。
+  // 開いたまま境目を跨いだ場合も、閉じている間に跨いだ場合もここで拾う。
+  function checkBoundary(){
+    var now = new Date();
+    var nowPeriod = periodAt(now);
+    var nowId = cycleIdAt(now);
+    if(!state.lastCycle || typeof state.lastCycle.id !== "string"){
+      state.lastCycle = { period: nowPeriod, id: nowId };
+      save();
+      return false;
+    }
+    if(state.lastCycle.period === nowPeriod && state.lastCycle.id === nowId) return false;
+    var prevPeriod = state.lastCycle.period;
+    // 終わった時間帯をリセット（例：5:30を過ぎたら よる が最初から）
+    state.progress[prevPeriod] = freshProgress();
+    // 始まった時間帯も新しい区切りなので最初から
+    state.progress[nowPeriod] = freshProgress();
+    // 丸1区切り以上閉じていた等で同じ時間帯のまま区切りが変わった場合は、もう一方も終わっている
+    if(prevPeriod === nowPeriod){
+      state.progress[nowPeriod === "night" ? "morning" : "night"] = freshProgress();
+    }
+    state.lastCycle = { period: nowPeriod, id: nowId };
+    save();
+    return true;
+  }
+  function applyBoundary(){
+    if(checkBoundary()){
+      renderDeck();
+      if(view==="list") renderList();
+      if(view==="edit") renderEdit();
+    }
   }
 
   /* ===== 一覧 ===== */
@@ -525,6 +583,12 @@
     if(timer.kind === "countdown"){ cancelCountdown(); } else { startCountdown(); }
   });
   stopwatchBtn.addEventListener("click", toggleStopwatch);
+
+  /* ===== 境目チェック：起動時＋開いている間も定期的に ===== */
+  checkBoundary();
+  setInterval(applyBoundary, 20000);
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden) applyBoundary(); });
+  window.addEventListener("focus", applyBoundary);
 
   renderDeck();
 })();
