@@ -88,11 +88,8 @@
   }
   .timer-display.is-done{background:var(--tab-active); color:#fff; border-color:var(--tab-active)}
   .timer-top{display:flex; align-items:center; gap:8px}
-  .timer-reset-btn{
-    min-width:44px; min-height:44px; border-radius:999px; border:1.5px solid var(--line);
-    background:var(--pill-bg); color:var(--ink); font-size:19px; font-weight:800; line-height:1; padding:6px;
-  }
-  .timer-reset-btn:active{transform:scale(.95)}
+  .timer-display{cursor:pointer; font-family:inherit}
+  .timer-display:active{transform:scale(.98)}
   .timer-btns{display:flex; gap:10px; width:100%}
   .timer-btn{
     flex:1; min-height:48px; border-radius:999px; border:1.5px solid var(--line);
@@ -185,8 +182,7 @@
 
       <div class="timer-area" aria-label="タイマー">
         <div class="timer-top">
-          <div class="timer-display" id="timerDisplay" role="timer">0:00</div>
-          <button class="timer-reset-btn" id="timerResetBtn" type="button" aria-label="いまのタスクの計測時間をリセット" title="計測時間をリセット">↩︎</button>
+          <button class="timer-display" id="timerDisplay" type="button" role="timer" aria-label="いまのタスクの計測時間（タップでリセット）" title="タップで計測時間をリセット">00:00</button>
         </div>
         <div class="timer-btns">
           <button class="timer-btn" id="countdownBtn" type="button" aria-pressed="false">10秒カウント</button>
@@ -617,7 +613,7 @@
   function fmtClock(totalSec){
     var s = Math.max(0, Math.floor(totalSec));
     var m = Math.floor(s / 60);
-    return m + ":" + String(s % 60).padStart(2, "0");
+    return String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
   }
   function showTimer(sec){ timerDisplay.textContent = fmtClock(sec); }
   function currentTask(){
@@ -690,8 +686,8 @@
     if(timer.kind === "countdown"){ cancelCountdown(); } else { startCountdown(); }
   });
   stopwatchBtn.addEventListener("click", toggleStopwatch);
-  // ↩：いま表示中のタスクの計測時間だけをリセットする（ほかのタスクの時間は触らない）
-  $("timerResetBtn").addEventListener("click", function(){
+  // 時間表示タップ：いま表示中のタスクの計測時間だけをリセットする（ほかのタスクの時間は触らない）
+  $("timerDisplay").addEventListener("click", function(){
     var t = currentTask(); if(!t) return;
     if(state.running && state.running.id === t.id) state.running = null;
     delete state.times[t.id];
